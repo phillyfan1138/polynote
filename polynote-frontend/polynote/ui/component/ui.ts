@@ -36,7 +36,7 @@ import {HomeUI} from "./home";
 import {Either} from "../../data/types";
 import {SocketSession} from "../../comms";
 import {CurrentNotebook} from "./current_notebook";
-
+import {Prompt} from './prompt'
 // what is this?
 document.execCommand("defaultParagraphSeparator", false, "p");
 document.execCommand("styleWithCSS", false);
@@ -259,11 +259,11 @@ export class MainUI extends UIMessageTarget {
             this.browseUI.addItem(actualPath);
             this.loadNotebook(actualPath);
         });
-
-        const notebookPath = prompt("Enter the name of the new notebook (no need for an extension)");
-        if (notebookPath) {
+        const prompt = new Prompt(notebookPath=>{
             SocketSession.get.send(new messages.CreateNotebook(notebookPath))
-        }
+        })
+        prompt.setTitle("Enter the name of the new notebook (no need for an extension)")
+        prompt.show()
     }
 
     importNotebook(name?: string, content?: string) {
@@ -276,15 +276,18 @@ export class MainUI extends UIMessageTarget {
         if (name && content) { // the evt has all we need
             SocketSession.get.send(new messages.CreateNotebook(name, Either.right(content)));
         } else {
-            const userInput = prompt("Enter the full URL of another Polynote instance.");
-            const notebookURL = userInput && new URL(userInput);
+            const prompt = new Prompt(userInput=>{
+                const notebookURL = userInput && new URL(userInput);
+                if (notebookURL && notebookURL.protocol.startsWith("http")) {
+                    const nbFile = decodeURI(notebookURL.pathname.split("/").pop()!);
+                    notebookURL.search = "download=true";
+                    notebookURL.hash = "";
+                    SocketSession.get.send(new messages.CreateNotebook(nbFile, Either.left(notebookURL.href)));
+                }
+            })
+            prompt.setTitle("Enter the full URL of another Polynote instance.")
+            prompt.show()
 
-            if (notebookURL && notebookURL.protocol.startsWith("http")) {
-                const nbFile = decodeURI(notebookURL.pathname.split("/").pop()!);
-                notebookURL.search = "download=true";
-                notebookURL.hash = "";
-                SocketSession.get.send(new messages.CreateNotebook(nbFile, Either.left(notebookURL.href)));
-            }
         }
     }
 
